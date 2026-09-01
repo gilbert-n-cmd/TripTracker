@@ -460,6 +460,42 @@
     const resetBtn = document.getElementById('resetBtn');
 
     // ====================================================
+    // START TRIP LISTENER (ALWAYS ACTIVE - EVEN WITHOUT LOGIN)
+    // ====================================================
+    function startTripListener() {
+        if (unsubscribeTrips) {
+            unsubscribeTrips();
+            unsubscribeTrips = null;
+        }
+
+        // Collection at root level for public access
+        const tripsRef = db.collection('trips');
+        
+        unsubscribeTrips = tripsRef
+            .orderBy('date', 'desc')
+            .limit(100)
+            .onSnapshot((snapshot) => {
+                trips = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    trips.push({
+                        id: doc.id,
+                        date: data.date,
+                        type: data.type,
+                        amount: data.amount || RATE,
+                        userId: data.userId || 'unknown',
+                        userEmail: data.userEmail || 'Unknown'
+                    });
+                });
+                // Always render, even if not logged in
+                render();
+            }, (error) => {
+                console.error('Firestore error:', error);
+                tripList.innerHTML = '<div class="empty">❌ Error loading trips. Make sure Firebase is configured correctly.</div>';
+            });
+    }
+
+    // ====================================================
     // AUTH FUNCTIONS
     // ====================================================
     function updateUIForAuth(user) {
@@ -471,8 +507,6 @@
             pickupBtn.disabled = false;
             dropoffBtn.disabled = false;
             resetBtn.disabled = false;
-            // Enable delete buttons
-            document.querySelectorAll('.del').forEach(btn => btn.disabled = false);
             authOverlay.classList.add('hidden');
         } else {
             currentUser = null;
@@ -482,8 +516,9 @@
             pickupBtn.disabled = true;
             dropoffBtn.disabled = true;
             resetBtn.disabled = true;
-            document.querySelectorAll('.del').forEach(btn => btn.disabled = true);
         }
+        // Re-render to update delete buttons
+        render();
     }
 
     loginToggleBtn.addEventListener('click', () => {
@@ -562,49 +597,8 @@
     // ====================================================
     auth.onAuthStateChanged((user) => {
         updateUIForAuth(user);
-        if (user) {
-            startTripListener();
-        } else {
-            if (unsubscribeTrips) {
-                unsubscribeTrips();
-                unsubscribeTrips = null;
-            }
-            trips = [];
-            render();
-        }
         authBtn.disabled = false;
     });
-
-    // ====================================================
-    // FIRESTORE: REAL-TIME TRIP LISTENER (Public Read)
-    // ====================================================
-    function startTripListener() {
-        if (unsubscribeTrips) unsubscribeTrips();
-
-        // Collection is at root level for public access
-        const tripsRef = db.collection('trips');
-        
-        unsubscribeTrips = tripsRef
-            .orderBy('date', 'desc')
-            .limit(100)
-            .onSnapshot((snapshot) => {
-                trips = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    trips.push({
-                        id: doc.id,
-                        date: data.date,
-                        type: data.type,
-                        amount: data.amount || RATE,
-                        userId: data.userId || 'unknown'
-                    });
-                });
-                render();
-            }, (error) => {
-                console.error('Firestore error:', error);
-                tripList.innerHTML = '<div class="empty">❌ Error loading trips.</div>';
-            });
-    }
 
     // ====================================================
     // CRUD OPERATIONS (Require Login)
@@ -794,8 +788,7 @@ ${recent || 'No recent trips'}
             return;
         }
 
-        
-               const isLoggedIn = !!currentUser;
+        const isLoggedIn = !!currentUser;
 
         tripList.innerHTML = trips.slice(0, 20).map((t) => {
             const typeClass = t.type === 'pickup' ? 'pickup' : 'dropoff';
@@ -803,7 +796,7 @@ ${recent || 'No recent trips'}
             const date = new Date(t.date);
             const dateStr = date.toLocaleDateString('en-UG', { day:'numeric', month:'short' });
             const timeStr = date.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
-            const addedBy = t.userEmail ? `👤 ${t.userEmail.split('@')[0]}` : '';
+            const addedBy = t.userEmail && t.userEmail !== 'Unknown' ? `👤 ${t.userEmail.split('@')[0]}` : '';
             return `
                 <div class="trip-item">
                     <span>
@@ -845,13 +838,13 @@ ${recent || 'No recent trips'}
     setInterval(render, 60000);
 
     // ====================================================
-    // INIT
+    // INIT - START LISTENER IMMEDIATELY
     // ====================================================
-    // Start listener even without login (public read)
+    // This is the FIX - listener starts even without login
     startTripListener();
 
     console.log('🚗 Trip Tracker loaded!');
-    console.log('📖 Anyone can VIEW data');
+    console.log('📖 Anyone can VIEW data (listener active)');
     console.log('🔒 Only logged-in users can ADD/EDIT/DELETE');
     console.log('💡 Shortcuts: P = Pick Up, D = Drop Off (when logged in)');
 </script>
