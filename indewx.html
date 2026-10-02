@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>🚗 Trip Tracker</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 16px;
+            margin: 0;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        .hidden { display: none !important; }
+        
+        /* Auth Overlay */
+        #authOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        #authOverlay .auth-box {
+            background: #1e293b;
+            border-radius: 24px;
+            padding: 32px 24px;
+            max-width: 400px;
+            width: 100%;
+        }
+        #authOverlay h2 {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        #authOverlay .sub {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 14px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-size: 16px;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            background: #3b82f6;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .btn-primary:active { transform: scale(0.97); }
+        .btn-primary:disabled { opacity: 0.5; }
+        
+        .auth-toggle {
+            color: #60a5fa;
+            cursor: pointer;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 8px;
+        }
+        .auth-error {
+            color: #ef4444;
+            font-size: 14px;
+            margin: 8px 0;
+            min-height: 20px;
+        }
+        .auth-success {
+            color: #4ade80;
+            font-size: 14px;
+            margin: 8px 0;
+        }
+        
+        /* Main App */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .header h1 { font-size: 22px; }
+        .header .user-info {
+            font-size: 13px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-logout {
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-login-prompt {
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-login-prompt:active { opacity: 0.7; }
+        
+        .card {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .stat-box {
+            background: #0f172a;
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-number {
+            font-size: 26px;
+            font-weight: 800;
+            margin-top: 4px;
+        }
+        .stat-number.green { color: #4ade80; }
+        .stat-number.blue { color: #60a5fa; }
+        .stat-number.purple { color: #a78bfa; }
+        .stat-number.orange { color: #fb923c; }
+        
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+        .btn {
+            flex: 1;
+            padding: 20px 0;
+            border: none;
+            border-radius: 16px;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            touch-action: manipulation;
+        }
+        .btn:active { transform: scale(0.94); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-pickup { background: #3b82f6; color: #fff; }
+        .btn-dropoff { background: #8b5cf6; color: #fff; }
+        
+        .btn-share {
+            background: #25D366;
+            color: #fff;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: transform 0.1s;
+        }
+        .btn-share:active { transform: scale(0.97); }
+        
+        .btn-reset {
+            background: #ef4444;
+            color: #fff;
+            padding: 12px;
+            font-size: 14px;
+            border: none;
+            border-radius: 12px;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+        .btn-reset:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-reset:active:not(:disabled) { opacity: 0.7; }
+        
+        .trip-list {
+            max-height: 500px;
+            overflow-y: auto;
+            margin-top: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .trip-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: #0f172a;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            font-size: 14px;
+            align-items: center;
+        }
+        .trip-item .type.pickup { color: #60a5fa; }
+        .trip-item .type.dropoff { color: #a78bfa; }
+        .trip-item .del {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0 4px;
+        }
+        .trip-item .del:disabled { opacity: 0.3; cursor: not-allowed; }
+        .empty {
+            text-align: center;
+            color: #64748b;
+            padding: 20px 0;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            color: #94a3b8;
+            padding: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #475569;
+            margin-top: 20px;
+        }
+        .login-badge {
+            display: inline-block;
+            background: #22c55e;
+            color: #fff;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .readonly-badge {
+            display: inline-block;
+            background: #f59e0b;
+            color: #fff;
+            padding: 2px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- ===== MAIN APP ===== -->
+    <div id="mainApp">
+        
+        <div class="header">
+            <h1>🚗 Trip Tracker</h1>
+            <div class="user-info">
+                <span id="userStatus">👤 <span class="readonly-badge">View Only</span></span>
+                <button class="btn-login-prompt" id="loginToggleBtn">Login</button>
+            </div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="card">
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-label">Today</div>
+                    <div class="stat-number blue" id="todayTotal">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">This Week</div>
+                    <div class="stat-number green" id="weekTotal">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">This Month</div>
+                    <div class="stat-number purple" id="monthTotal">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">All Time</div>
+                    <div class="stat-number orange" id="allTotal">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Buttons -->
+        <div class="card">
+            <div class="btn-group">
+                <button class="btn btn-pickup" id="pickupBtn" disabled>⬆️ Pick Up</button>
+                <button class="btn btn-dropoff" id="dropoffBtn" disabled>⬇️ Drop Off</button>
+            </div>
+            
+            <!-- SHARE BUTTON (Always works) -->
+            <button class="btn-share" id="shareBtn">
+                📤 Share Report on WhatsApp
+            </button>
+            
+            <button class="btn-reset" id="resetBtn" disabled>🗑️ Delete All My Trips</button>
+        </div>
+        
+        <!-- Trip List -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <strong>📋 All Trips</strong>
+                <span style="font-size:12px; color:#94a3b8;" id="tripCount">0 trips</span>
+            </div>
+            <div class="trip-list" id="tripList">
+                <div class="loading">Loading trips...</div>
+            </div>
+        </div>
+        
+        <div class="footer">📊 Data synced with Firebase · Viewable by everyone</div>
+    </div>
+    
+    <!-- ===== AUTH OVERLAY ===== -->
+    <div id="authOverlay" class="hidden">
+        <div class="auth-box">
+            <h2>🔐 Login Required</h2>
+            <div class="sub">Sign in to add, edit, or delete trips</div>
+            
+            <div id="authError" class="auth-error"></div>
+            <div id="authSuccess" class="auth-success hidden"></div>
+            
+            <div class="input-group">
+                <label>Email</label>
+                <input type="email" id="emailInput" placeholder="you@email.com" />
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="passwordInput" placeholder="••••••••" />
+            </div>
+            
+            <button class="btn-primary" id="authBtn">Sign In</button>
+            
+            <div style="margin-top:12px; text-align:center;">
+                <span style="color:#94a3b8;font-size:14px;">Don't have an account? </span>
+                <span class="auth-toggle" id="toggleAuth">Create one</span>
+            </div>
+            
+            <div style="margin-top:16px; text-align:center;">
+                <button class="btn-primary" id="skipAuthBtn" style="background:#475569; font-size:14px; padding:12px;">
+                    👁️ Continue as Viewer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ====================================================
+    // 🔥 FIREBASE CONFIG
+    // ====================================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyBikX1MHCDNTsLe2H73lYpwhWTq4ObJMvM",
+        authDomain: "trip-tracker-77e24.firebaseapp.com",
+        projectId: "trip-tracker-77e24",
+        storageBucket: "trip-tracker-77e24.firebasestorage.app",
+        messagingSenderId: "207611900252",
+        appId: "1:207611900252:web:5ad146fcab25100c819199"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // ====================================================
+    // STATE
+    // ====================================================
+    const RATE = 3000;
+    let trips = [];
+    let currentUser = null;
+    let unsubscribeTrips = null;
+    let isSignUp = false;
+
+    // ====================================================
+    // DOM REFS
+    // ====================================================
+    const authOverlay = document.getElementById('authOverlay');
+    const emailInput = document.getElementById('emailInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const authBtn = document.getElementById('authBtn');
+    const toggleAuth = document.getElementById('toggleAuth');
+    const skipAuthBtn = document.getElementById('skipAuthBtn');
+    const authError = document.getElementById('authError');
+    const authSuccess = document.getElementById('authSuccess');
+    const loginToggleBtn = document.getElementById('loginToggleBtn');
+    const userStatus = document.getElementById('userStatus');
+    const tripList = document.getElementById('tripList');
+    const tripCount = document.getElementById('tripCount');
+    const todayTotal = document.getElementById('todayTotal');
+    const weekTotal = document.getElementById('weekTotal');
+    const monthTotal = document.getElementById('monthTotal');
+    const allTotal = document.getElementById('allTotal');
+    const pickupBtn = document.getElementById('pickupBtn');
+    const dropoffBtn = document.getElementById('dropoffBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    // ====================================================
+    // START TRIP LISTENER — loads ALL trips (no limit)
+    // ====================================================
+    function startTripListener() {
+        if (unsubscribeTrips) {
+            unsubscribeTrips();
+            unsubscribeTrips = null;
+        }
+
+        const tripsRef = db.collection('trips');
+        
+        unsubscribeTrips = tripsRef
+            .orderBy('date', 'desc')
+            .onSnapshot((snapshot) => {
+                trips = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    trips.push({
+                        id: doc.id,
+                        date: data.date,
+                        type: data.type,
+                        amount: data.amount || RATE,
+                        userId: data.userId || 'unknown',
+                        userEmail: data.userEmail || 'Unknown'
+                    });
+                });
+                render();
+            }, (error) => {
+                console.error('Firestore error:', error);
+                tripList.innerHTML = '<div class="empty">❌ Error loading trips. Make sure Firebase is configured correctly.</div>';
+            });
+    }
+
+    // ====================================================
+    // AUTH FUNCTIONS
+    // ====================================================
+    function updateUIForAuth(user) {
+        if (user) {
+            currentUser = user;
+            userStatus.innerHTML = `👤 ${user.email.split('@')[0]} <span class="login-badge">● Logged In</span>`;
+            loginToggleBtn.textContent = 'Logout';
+            loginToggleBtn.className = 'btn-logout';
+            pickupBtn.disabled = false;
+            dropoffBtn.disabled = false;
+            resetBtn.disabled = false;
+            authOverlay.classList.add('hidden');
+        } else {
+            currentUser = null;
+            userStatus.innerHTML = '👤 <span class="readonly-badge">View Only</span>';
+            loginToggleBtn.textContent = 'Login';
+            loginToggleBtn.className = 'btn-login-prompt';
+            pickupBtn.disabled = true;
+            dropoffBtn.disabled = true;
+            resetBtn.disabled = true;
+        }
+        render();
+    }
+
+    loginToggleBtn.addEventListener('click', () => {
+        if (currentUser) {
+            auth.signOut();
+        } else {
+            authOverlay.classList.remove('hidden');
+            authError.textContent = '';
+            authSuccess.textContent = '';
+            emailInput.value = '';
+            passwordInput.value = '';
+            isSignUp = false;
+            authBtn.textContent = 'Sign In';
+            toggleAuth.textContent = 'Create one';
+        }
+    });
+
+    toggleAuth.addEventListener('click', () => {
+        isSignUp = !isSignUp;
+        authBtn.textContent = isSignUp ? 'Create Account' : 'Sign In';
+        toggleAuth.textContent = isSignUp ? 'Sign in instead' : 'Create one';
+        authError.textContent = '';
+        authSuccess.textContent = '';
+    });
+
+    skipAuthBtn.addEventListener('click', () => {
+        authOverlay.classList.add('hidden');
+        authError.textContent = '';
+    });
+
+    authBtn.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        if (!email || !password) {
+            authError.textContent = 'Please enter email and password';
+            return;
+        }
+        if (password.length < 6) {
+            authError.textContent = 'Password must be at least 6 characters';
+            return;
+        }
+
+        authBtn.disabled = true;
+        authError.textContent = '';
+        authSuccess.classList.add('hidden');
+
+        try {
+            if (isSignUp) {
+                await auth.createUserWithEmailAndPassword(email, password);
+                authSuccess.textContent = '✅ Account created!';
+                authSuccess.classList.remove('hidden');
+                setTimeout(() => {
+                    authOverlay.classList.add('hidden');
+                }, 1500);
+            } else {
+                await auth.signInWithEmailAndPassword(email, password);
+                authOverlay.classList.add('hidden');
+            }
+        } catch (error) {
+            authError.textContent = error.message;
+            authBtn.disabled = false;
+        }
+    });
+
+    passwordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') authBtn.click();
+    });
+    emailInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') authBtn.click();
+    });
+
+    // ====================================================
+    // AUTH STATE OBSERVER
+    // ====================================================
+    auth.onAuthStateChanged((user) => {
+        updateUIForAuth(user);
+        authBtn.disabled = false;
+    });
+
+    // ====================================================
+    // CRUD OPERATIONS (Require Login)
+    // ====================================================
+    async function addTrip(type) {
+        if (!currentUser) {
+            authOverlay.classList.remove('hidden');
+            authError.textContent = '⚠️ Please login to add trips';
+            return;
+        }
+        
+        const tripData = {
+            date: new Date().toISOString(),
+            type: type,
+            amount: RATE,
+            userId: currentUser.uid,
+            userEmail: currentUser.email,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        try {
+            await db.collection('trips').add(tripData);
+            if (navigator.vibrate) navigator.vibrate(10);
+        } catch (error) {
+            alert('Error saving: ' + error.message);
+        }
+    }
+
+    async function deleteTrip(tripId) {
+        if (!currentUser) {
+            authOverlay.classList.remove('hidden');
+            authError.textContent = '⚠️ Please login to delete trips';
+            return;
+        }
+        if (!confirm('Delete this trip?')) return;
+
+        try {
+            await db.collection('trips').doc(tripId).delete();
+        } catch (error) {
+            alert('Error deleting: ' + error.message);
+        }
+    }
+
+    async function deleteAllTrips() {
+        if (!currentUser) {
+            authOverlay.classList.remove('hidden');
+            authError.textContent = '⚠️ Please login to delete trips';
+            return;
+        }
+        if (!confirm('⚠️ Delete ALL trips? This cannot be undone!')) return;
+        if (!confirm('Are you absolutely sure?')) return;
+
+        try {
+            const snapshot = await db.collection('trips').get();
+            const batch = db.batch();
+            snapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            alert('✅ All trips deleted!');
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    // ====================================================
+    // SHARE TO WHATSAPP (Always works)
+    // ====================================================
+    function shareToWhatsApp() {
+        if (trips.length === 0) {
+            alert('No trips to share! Add some trips first.');
+            return;
+        }
+
+        const today = new Date();
+        const todayStr = today.toLocaleDateString('en-UG', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+        });
+
+        const todayTrips = trips.filter(t => isToday(t.date));
+        const weekTrips = trips.filter(t => isThisWeek(t.date));
+        const monthTrips = trips.filter(t => isThisMonth(t.date));
+        const totalTrips = trips.length;
+
+        const todayTotalAmt = todayTrips.reduce((s, t) => s + t.amount, 0);
+        const weekTotalAmt = weekTrips.reduce((s, t) => s + t.amount, 0);
+        const monthTotalAmt = monthTrips.reduce((s, t) => s + t.amount, 0);
+        const allTotalAmt = trips.reduce((s, t) => s + t.amount, 0);
+
+        const pickups = trips.filter(t => t.type === 'pickup').length;
+        const dropoffs = trips.filter(t => t.type === 'dropoff').length;
+
+        const recent = trips.slice(0, 5).map(t => {
+            const date = new Date(t.date);
+            const dateStr = date.toLocaleDateString('en-UG', { day:'numeric', month:'short' });
+            const timeStr = date.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
+            const emoji = t.type === 'pickup' ? '⬆️' : '⬇️';
+            return `${emoji} ${t.type.toUpperCase()} · ${dateStr} ${timeStr} · ${t.amount.toLocaleString()}`;
+        }).join('\n');
+
+        const userInfo = currentUser ? `👤 ${currentUser.email}` : '👤 Viewer';
+
+        const message = `🚗 *TRIP TRACKER REPORT*
+📅 ${todayStr}
+${userInfo}
+
+💰 *SUMMARY*
+• Today:   ${todayTotalAmt.toLocaleString()} (${todayTrips.length} trips)
+• This Week:   ${weekTotalAmt.toLocaleString()} (${weekTrips.length} trips)
+• This Month:  ${monthTotalAmt.toLocaleString()} (${monthTrips.length} trips)
+• All Time:    ${allTotalAmt.toLocaleString()} (${totalTrips} trips)
+
+📊 *BREAKDOWN*
+• Pick Ups:  ${pickups}
+• Drop Offs: ${dropoffs}
+• Total Trips: ${totalTrips}
+
+🕐 *Recent Trips*
+${recent || 'No recent trips'}
+
+📱 *Shared from Trip Tracker App*
+`;
+
+        const encoded = encodeURIComponent(message);
+        const url = `https://wa.me/?text=${encoded}`;
+        window.open(url, '_blank');
+    }
+
+    // ====================================================
+    // HELPERS
+    // ====================================================
+    function getWeekNumber(date) {
+        const d = new Date(date);
+        d.setHours(0,0,0,0);
+        const yearStart = new Date(d.getFullYear(), 0, 1);
+        return Math.ceil((((d - yearStart) / 86400000) + yearStart.getDay() + 1) / 7);
+    }
+
+    function isToday(date) {
+        const today = new Date();
+        const d = new Date(date);
+        return d.getFullYear() === today.getFullYear() &&
+               d.getMonth() === today.getMonth() &&
+               d.getDate() === today.getDate();
+    }
+
+    function isThisWeek(date) {
+        const now = new Date();
+        const d = new Date(date);
+        return now.getFullYear() === d.getFullYear() && 
+               getWeekNumber(now) === getWeekNumber(d);
+    }
+
+    function isThisMonth(date) {
+        const now = new Date();
+        const d = new Date(date);
+        return now.getFullYear() === d.getFullYear() &&
+               now.getMonth() === d.getMonth();
+    }
+
+    // ====================================================
+    // RENDER — shows ALL trips
+    // ====================================================
+    function render() {
+        if (!tripList) return;
+
+        const todayTrips = trips.filter(t => isToday(t.date));
+        const weekTrips = trips.filter(t => isThisWeek(t.date));
+        const monthTrips = trips.filter(t => isThisMonth(t.date));
+
+        const todayAmt = todayTrips.reduce((s, t) => s + t.amount, 0);
+        const weekAmt = weekTrips.reduce((s, t) => s + t.amount, 0);
+        const monthAmt = monthTrips.reduce((s, t) => s + t.amount, 0);
+        const allAmt = trips.reduce((s, t) => s + t.amount, 0);
+
+        todayTotal.textContent = todayAmt.toLocaleString();
+        weekTotal.textContent = weekAmt.toLocaleString();
+        monthTotal.textContent = monthAmt.toLocaleString();
+        allTotal.textContent = allAmt.toLocaleString();
+        tripCount.textContent = trips.length + ' trips';
+
+        if (trips.length === 0) {
+            tripList.innerHTML = '<div class="empty">No trips yet. Tap Pick Up or Drop Off!</div>';
+            return;
+        }
+
+        const isLoggedIn = !!currentUser;
+
+        // ✅ Shows ALL trips (no slice)
+        tripList.innerHTML = trips.map((t) => {
+            const typeClass = t.type === 'pickup' ? 'pickup' : 'dropoff';
+            const typeLabel = t.type === 'pickup' ? '⬆️ Pick Up' : '⬇️ Drop Off';
+            const date = new Date(t.date);
+            const dateStr = date.toLocaleDateString('en-UG', { day:'numeric', month:'short' });
+            const timeStr = date.toLocaleTimeString('en-UG', { hour:'2-digit', minute:'2-digit' });
+            const addedBy = t.userEmail && t.userEmail !== 'Unknown' ? `👤 ${t.userEmail.split('@')[0]}` : '';
+            return `
+                <div class="trip-item">
+                    <span>
+                        <span class="type ${typeClass}">${typeLabel}</span>
+                        <span style="color:#94a3b8;font-size:12px;">${dateStr} ${timeStr}</span>
+                        <span style="color:#64748b;font-size:10px;margin-left:6px;">${addedBy}</span>
+                    </span>
+                    <span>
+                        ${t.amount.toLocaleString()}
+                        <button class="del" data-id="${t.id}" ${!isLoggedIn ? 'disabled' : ''}>✕</button>
+                    </span>
+                </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.del').forEach(btn => {
+            btn.addEventListener('click', function() {
+                deleteTrip(this.dataset.id);
+            });
+        });
+    }
+
+    // ====================================================
+    // EVENT LISTENERS
+    // ====================================================
+    document.getElementById('pickupBtn').addEventListener('click', () => addTrip('pickup'));
+    document.getElementById('dropoffBtn').addEventListener('click', () => addTrip('dropoff'));
+    document.getElementById('resetBtn').addEventListener('click', deleteAllTrips);
+    document.getElementById('shareBtn').addEventListener('click', shareToWhatsApp);
+
+    document.addEventListener('keydown', (e) => {
+        if (!currentUser) return;
+        if (e.key === 'p' || e.key === 'P') addTrip('pickup');
+        if (e.key === 'd' || e.key === 'D') addTrip('dropoff');
+    });
+
+    setInterval(render, 60000);
+
+    // ====================================================
+    // INIT
+    // ====================================================
+    startTripListener();
+
+    console.log('🚗 Trip Tracker loaded!');
+    console.log('📖 Anyone can VIEW all trips');
+    console.log('🔒 Only logged-in users can ADD/EDIT/DELETE');
+    console.log('💡 Shortcuts: P = Pick Up, D = Drop Off (when logged in)');
+</script>
+</body>
+</html>
